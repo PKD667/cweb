@@ -28,7 +28,7 @@ int get(char* path,char** response)
 {
     if (strcmp(path,"/") == 0)
     {
-        *response = "<html><body><h1>200 OK</h1></body></html>";
+        get_html("index.html",response);
         return 200;
     }
     else
