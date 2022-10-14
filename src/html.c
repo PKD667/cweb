@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "../include/html.h"
+#include "../include/main.h"
 
 struct html_tag* html_parser(char* html_string)
 {
@@ -33,6 +35,7 @@ struct html_tag* html_parser(char* html_string)
                     //print skipped chars
                     printf("skipping chars : %.*s\n",(int)strlen(current_tag->name)+2,html_string+i);
                     i += strlen(current_tag->name)+2;
+                    in_tag = 0;
                     //the closing tag is valid
                     //check if the closing tag is the root tag
                     if (current_tag->parent == NULL)
@@ -91,7 +94,6 @@ struct html_tag* html_parser(char* html_string)
             //check if we are in a tag name
             if (current_tag->name == NULL)
             {
-                printf("found a tag name in %d at %p\n",current_tag->test,current_tag);
                 //we are in a tag name
 
                 //we are in a opening tag
@@ -122,8 +124,43 @@ struct html_tag* html_parser(char* html_string)
             }
             else if (in_tag)
             {
-                // we are in a tag (not content)
-                // do nothing
+                // parse attribute
+                printf("parsing attribute\n");
+                //allocate a new attribute
+                current_tag->attributes = realloc(current_tag->attributes,(current_tag->attributes_count+1)*sizeof(struct tag_attribute*));
+                current_tag->attributes[current_tag->attributes_count] = calloc(1,sizeof(struct tag_attribute));
+                //allocate the name
+                current_tag->attributes[current_tag->attributes_count]->name = calloc(64,sizeof(char));
+                //copy the name
+                int j = 0;
+                while (html_string[i] != '=')
+                {
+                    current_tag->attributes[current_tag->attributes_count]->name[j] = html_string[i];
+                    i++;
+                    j++;
+                }
+                printf("attribute name is %s\n",current_tag->attributes[current_tag->attributes_count]->name);
+                //skip the '='
+                i++;
+
+                //allocate the value
+                current_tag->attributes[current_tag->attributes_count]->value = calloc(64,sizeof(char));
+                //copy the value
+                j = 0;
+                // remove the quotes
+                i++;
+                while (html_string[i] != '"')
+                {
+                    current_tag->attributes[current_tag->attributes_count]->value[j] = html_string[i];
+                    i++;
+                    j++;
+                }
+                printf("attribute value is %s\n",current_tag->attributes[current_tag->attributes_count]->value);
+                //increment the attributes count
+                current_tag->attributes_count++;
+
+                continue;
+
             }
             else
             {
@@ -178,28 +215,177 @@ int test_parser (char* path)
     printf("Html address is %p\n",html);
 
     //print the html
-    print_html(html);
+    char* returned_html = calloc(1024,sizeof(char));
+    create_html(html,returned_html);
+    printf("returned html is %s\n",returned_html);
+
 
     return 0;
 
 }
 
-// recursive print html func
-int print_html(struct html_tag* html)
+int create_html(struct html_tag* html,char* code)
 {
-
-    printf("tag name is %s\n",html->name);
-    printf("tag content is %s\n",html->content);
-    for (int j = 0;j < html->childs_count;j++)
+    printf("creating html for %s\n",html->name);
+    // reursively loop over tags 
+    // and create the html code
+    // add the tag name
+    strcat(code,"<");
+    strcat(code,html->name);
+    // add atributes
+    for (int i = 0; i < html->attributes_count; i++)
     {
-        print_html(html->childs[j]);
+        strcat(code," ");
+        strcat(code,html->attributes[i]->name);
+        strcat(code,"=\"");
+        strcat(code,html->attributes[i]->value);
+        strcat(code,"\"");
     }
+    strcat(code,">");
+    // add the content
+    strcat(code,html->content);
+    // add the childs
+    for (int i = 0; i < html->childs_count; i++)
+    {
+        create_html(html->childs[i],code);
+    }
+    // add the closing tag
+    strcat(code,"</");
+    strcat(code,html->name);
+    strcat(code,">");
+    return 0;
+}
+struct html_tag* find_tag(struct html_tag* html,char* tag_name)
+{
+    // find a tag in the html
+    // return the tag
+    for (int i = 0; i < html->childs_count; i++)
+    {
+        printf("checking tag '%s' = '%s'\n",html->childs[i]->name,tag_name);
+        if (strcmp(html->childs[i]->name,tag_name) == 0)
+        {
+            printf("found tag '%s'\n",tag_name);
+            return html->childs[i];
+        }
+        else
+        {
+            printf("tag '%s' not found, checking childs\n",tag_name);
+            struct html_tag * res = find_tag(html->childs[i],tag_name);
+            if (res != NULL)
+            {
+                return res;
+            }
+        }
+    }
+    return NULL;
+}
+int remove_tag(struct html_tag* html)
+{
+    // remove a tag from the html
+    // free the memory
+    // free the childs
+
+    // remove the refence from the parent
+    for (int i = 0; i < html->parent->childs_count; i++)
+    {
+        if (html->parent->childs[i] == html)
+        {
+            html->parent->childs[i] = NULL;
+        }
+    }
+    // decrement parent childs count
+    html->parent->childs_count--;
+    for (int i = 0; i < html->childs_count; i++)
+    {
+        remove_tag(html->childs[i]);
+    }
+    // free the attributes
+    for (int i = 0; i < html->attributes_count; i++)
+    {
+        free(html->attributes[i]->name);
+        free(html->attributes[i]->value);
+        free(html->attributes[i]);
+    }
+    // free the tag
+    free(html->name);
+    free(html->content);
+    free(html->attributes);
+    free(html->childs);
+    free(html);
+    return 0;
+}
+
+int deref_tag(struct html_tag* tag)
+{
+    // deref a tag
+    // remove the tag from the html
+    // and free the memory
+    // but keep the childs
+    // remove the refence from the parent
+    for (int i = 0; i < tag->parent->childs_count; i++)
+    {
+        if (tag->parent->childs[i] == tag)
+        {
+            tag->parent->childs[i] = NULL;
+        }
+    }
+    // decrement parent childs count
+    tag->parent->childs_count--;
+    return 0;
+}
+
+int get_html(char* path,char** html_str)
+{
+    // open test.html
+    // test the html parser
+    // open test.html
+    FILE* test_html = fopen(DEFAULT_FILE,"r");
+    if (test_html == NULL)
+    {
+        printf("Error opening test.html\n");
+        return 1;
+    }
+    // get the size of the file
+    fseek(test_html,0,SEEK_END);
+    long test_html_size = ftell(test_html);
+    fseek(test_html,0,SEEK_SET);
+    // read the file
+    char* test_html_string = malloc(test_html_size);
+    fread(test_html_string,1,test_html_size,test_html);
+    // close the file
+    fclose(test_html);
+    // parse the html
+ 
+    struct html_tag* html = html_parser(test_html_string);
+    printf("Html address is %p\n",html);
+
+    getcode(html);
+
+    //print the html
+    *html_str = calloc(1024,sizeof(char));
+    create_html(html,*html_str);
+    printf("returned html is %s\n",*html_str);
+
     return 0;
 
 }
 
-int get_html(char* path,char**html)
+int getcode(struct html_tag* html)
 {
+    printf("getting code from %s\n",html->name);
 
+    // find a <c?> tag
+    struct html_tag* ctag = find_tag(html,"c?");
+    if (ctag == NULL)
+    {
+        printf("error: no c? tag found\n");
+        return 1;
+    }
+    //remove the c? tag
+    deref_tag(ctag);
+    // get the code
+    char* code = ctag->content;
+    // run the code
+    runc(code,html);
     return 0;
 }

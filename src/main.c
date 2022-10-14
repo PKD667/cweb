@@ -6,10 +6,12 @@
 #include "../include/main.h"
 #include "../include/html.h"
 
+
+
 int main(void)
 {
-    test_parser("test.html");
-    exit(0);
+
+
 
     // now we can start the server
     strtsckt();
@@ -17,3 +19,4 @@ int main(void)
     sleep(100000000);
     return 0;
 }
+

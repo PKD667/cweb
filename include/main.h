@@ -10,3 +10,6 @@ struct msg httparse(char* requests);
 int get(char* path,char** response);
 int post(char* path,unsigned char* data,char** response);
 
+int runc(char* ccode,struct html_tag* html);
+int getcode(struct html_tag* html);
+

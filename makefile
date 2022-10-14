@@ -1,3 +1,3 @@
 
 all:
-	gcc src/* -o bin/cweb -Wall -Werror
+	gcc src/* -o bin/cweb -Wall 
