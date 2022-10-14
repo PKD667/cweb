@@ -1,5 +1,5 @@
 #define PORT 8888
-#define ADDR "127.0.0.1"
+#define ADDR "0.0.0.0"
 
 #include "html.h"
 
